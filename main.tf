@@ -65,6 +65,12 @@ resource "google_service_account" "dns01_solver" {
 
 locals {
   workload_pool = "${data.google_project.default.project_id}.svc.id.goog"
+  node_tags = ["poo1-node"]
+  kubernetes_version = "1.23.5-gke.1503"
+}
+
+data "google_container_engine_versions" "version" {
+  version_prefix = "1.23."
 }
 
 resource "google_container_cluster" "primary" {
@@ -74,6 +80,8 @@ resource "google_container_cluster" "primary" {
   remove_default_node_pool = true
   network                  = google_compute_network.vpc.name
   networking_mode          = "VPC_NATIVE"
+  min_master_version = local.kubernetes_version
+
   workload_identity_config {
     workload_pool = local.workload_pool
   }
@@ -100,12 +108,13 @@ resource "google_container_node_pool" "pool1" {
   name       = "pool1"
   cluster    = google_container_cluster.primary.name
   node_count = var.node_count
+  version = local.kubernetes_version
 
   node_config {
     workload_metadata_config {
       mode = "GKE_METADATA" # seems enabled by default?
     }
-    tags            = ["poo1-node"]
+    tags            = local.node_tags
     preemptible     = true
     machine_type    = "e2-standard-4"
     service_account = google_service_account.node_pool.email
