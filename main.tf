@@ -59,6 +59,10 @@ resource "google_service_account" "external_dns" {
   display_name = "Kubernetes external-dns"
 }
 
+resource "google_service_account" "dns01_solver" {
+  account_id = "dns01-solver"
+}
+
 locals {
   workload_pool = "${data.google_project.default.project_id}.svc.id.goog"
 }
@@ -156,14 +160,28 @@ provider "helm" {
 }
 
 locals {
+  cert_manager_serviceAccount = "cert-manager"
+  cert_manager_namespace      = "cert-manager"
   external_dns_serviceAccount = "external-dns"
   external_dns_namespace      = "external-dns"
+}
+
+resource "google_project_iam_member" "dns01_solver" {
+  member  = "serviceAccount:${google_service_account.dns01_solver.email}"
+  project = data.google_project.default.project_id
+  role    = "roles/dns.admin"
 }
 
 resource "google_project_iam_member" "external_dns" {
   member  = "serviceAccount:${google_service_account.external_dns.email}"
   project = data.google_project.default.project_id
   role    = "roles/dns.admin"
+}
+
+resource "google_service_account_iam_member" "dns01_solver" {
+  member             = "serviceAccount:${local.workload_pool}[${local.cert_manager_namespace}/${local.cert_manager_serviceAccount}]"
+  role               = "roles/iam.workloadIdentityUser"
+  service_account_id = google_service_account.dns01_solver.id
 }
 
 resource "google_service_account_iam_member" "external_dns" {
@@ -243,20 +261,36 @@ resource "helm_release" "ingress_nginx" {
     name  = "controller.service.loadBalancerIP"
     value = google_compute_address.nginx.address
   }
+  set {
+    name  = "controller.service.loadBalancerSourceRanges"
+    value = "{${join(",", values(var.authorized_blocks))}}"
+  }
 }
 
 resource "helm_release" "cert_manager" {
+  depends_on = [
+    google_service_account_iam_member.dns01_solver
+  ]
   repository       = "https://charts.jetstack.io"
   chart            = "cert-manager"
   version          = "v1.8.2"
   name             = "cert-manager"
-  namespace        = "cert-manager"
+  namespace        = local.cert_manager_namespace
   create_namespace = true
   atomic           = true
   cleanup_on_fail  = true
+  recreate_pods    = true
   set {
     name  = "installCRDs"
     value = "true"
+  }
+  set {
+    name  = "serviceAccount.name"
+    value = local.cert_manager_serviceAccount
+  }
+  set {
+    name  = "serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account"
+    value = google_service_account.dns01_solver.email
   }
   set {
     name  = "extraArgs"
