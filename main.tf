@@ -83,13 +83,12 @@ resource "google_container_cluster" "primary" {
     master_ipv4_cidr_block  = "172.16.0.32/28"
   }
   master_authorized_networks_config {
-    cidr_blocks {
-      cidr_block = "104.139.112.144/32"
-
+    dynamic "cidr_blocks" {
+      for_each = var.authorized_blocks
+      content {
+        cidr_block = cidr_blocks.value
+      }
     }
-    #    cidr_blocks {
-    #      cidr_block = "104.139.112.145/32"
-    #    }
   }
 }
 

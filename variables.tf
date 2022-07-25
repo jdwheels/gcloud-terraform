@@ -19,3 +19,7 @@ variable "node_count" {
 variable "ingress_names" {
   type = set(string)
 }
+
+variable "authorized_blocks" {
+  type = map(string)
+}
