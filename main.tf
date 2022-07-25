@@ -365,6 +365,19 @@ resource "kubectl_manifest" "cluster_issuers" {
         }
         solvers = [
           {
+            dns01 = {
+              cloudDNS = {
+                project = data.google_project.default.project_id
+                hostedZoneName = google_dns_managed_zone.zone.name
+              }
+            }
+            selector = {
+              dnsZones = [
+                local.sub_domain
+              ]
+            }
+          },
+          {
             http01 = {
               ingress = {
                 class = "nginx"
