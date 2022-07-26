@@ -399,6 +399,49 @@ resource "kubectl_manifest" "cluster_issuers" {
   })
 }
 
+resource "kubernetes_role" "engineer" {
+  metadata {
+    name = "engineer"
+  }
+  rule {
+    api_groups = ["", "apps"]
+    resources = [
+      "pods",
+      "pods/attach",
+      "deployments",
+      "services",
+      "configmaps"
+    ]
+    verbs = [
+      "get",
+      "watch",
+      "list",
+      "update",
+      "create",
+      "delete",
+      "patch"
+    ]
+  }
+}
+
+resource "kubernetes_role_binding" "engineer" {
+  metadata {
+    name = "engineer"
+  }
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role.engineer.metadata[0].name
+  }
+  dynamic "subject" {
+    for_each = var.engineers
+    content {
+      kind = "User"
+      name = subject.value
+    }
+  }
+}
+
 locals {
   sub_domain           = trimsuffix(google_dns_managed_zone.zone.dns_name, ".")
   ingress_names        = var.ingress_names

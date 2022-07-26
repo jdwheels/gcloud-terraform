@@ -23,3 +23,7 @@ variable "ingress_names" {
 variable "authorized_blocks" {
   type = map(string)
 }
+
+variable "engineers" {
+  type = set(string)
+}
