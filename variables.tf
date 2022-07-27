@@ -27,3 +27,27 @@ variable "authorized_blocks" {
 variable "engineers" {
   type = set(string)
 }
+
+variable "region" {
+  type = string
+}
+
+variable "zone" {
+  type = string
+}
+
+variable "machine_type" {
+  type = string
+}
+
+variable "docker_registry_name" {
+  type = string
+}
+
+variable "docker_registry_description" {
+  type = string
+}
+
+variable "zone_name" {
+  type = string
+}

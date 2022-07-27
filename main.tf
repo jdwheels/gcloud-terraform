@@ -21,8 +21,8 @@ terraform {
 
 provider "google" {
   project = var.project_id
-  region  = "us-central1"
-  zone    = "us-central1-c"
+  region  = var.region
+  zone    = var.zone
 }
 
 resource "google_compute_network" "vpc" {
@@ -53,9 +53,6 @@ resource "google_service_account" "node_pool" {
   account_id   = "node-pool"
   display_name = "Node Pool"
 }
-
-
-
 
 locals {
   workload_pool      = "${data.google_project.default.project_id}.svc.id.goog"
@@ -110,7 +107,7 @@ resource "google_container_node_pool" "pool1" {
     }
     tags            = local.node_tags
     preemptible     = true
-    machine_type    = "e2-standard-4"
+    machine_type    = var.machine_type
     service_account = google_service_account.node_pool.email
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
@@ -147,8 +144,8 @@ provider "helm" {
 }
 
 resource "google_dns_managed_zone" "zone" {
-  name     = "z1"
-  dns_name = "z1.${var.root_domain}."
+  name     = var.zone_name
+  dns_name = "${var.zone_name}.${var.root_domain}."
 }
 
 resource "google_compute_router" "main" {
@@ -190,8 +187,8 @@ module "registry" {
   user_admins            = [var.admin_user_email]
   user_writers           = var.engineers
   serviceaccount_readers = [google_service_account.node_pool.email]
-  registry_name          = "my-repository"
-  registry_description   = "example docker repository"
+  registry_name          = var.docker_registry_name
+  registry_description   = var.docker_registry_description
 }
 
 resource "google_compute_router_nat" "main" {
