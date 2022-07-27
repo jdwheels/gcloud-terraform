@@ -211,17 +211,22 @@ resource "google_artifact_registry_repository" "demo" {
 }
 
 resource "google_artifact_registry_repository_iam_binding" "admin" {
-  project    = google_artifact_registry_repository.demo.project
   location   = google_artifact_registry_repository.demo.location
   repository = google_artifact_registry_repository.demo.name
   role       = "roles/artifactregistry.admin"
   members = [
-    "user:${var.admin_user_email}"
+    "user:${var.admin_user_email}",
   ]
 }
 
+resource "google_artifact_registry_repository_iam_binding" "writer" {
+  location   = google_artifact_registry_repository.demo.location
+  repository = google_artifact_registry_repository.demo.name
+  role       = "roles/artifactregistry.writer"
+  members    = [for e in var.engineers : "user:${e}"]
+}
+
 resource "google_artifact_registry_repository_iam_binding" "reader" {
-  project    = google_artifact_registry_repository.demo.project
   location   = google_artifact_registry_repository.demo.location
   repository = google_artifact_registry_repository.demo.name
   role       = "roles/artifactregistry.reader"
@@ -404,13 +409,14 @@ resource "kubernetes_role" "engineer" {
     name = "engineer"
   }
   rule {
-    api_groups = ["", "apps"]
+    api_groups = ["", "apps", "networking.k8s.io"]
     resources = [
       "pods",
       "pods/attach",
       "deployments",
       "services",
-      "configmaps"
+      "configmaps",
+      "ingresses"
     ]
     verbs = [
       "get",
