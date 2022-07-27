@@ -54,14 +54,8 @@ resource "google_service_account" "node_pool" {
   display_name = "Node Pool"
 }
 
-resource "google_service_account" "external_dns" {
-  account_id   = "sa-edns"
-  display_name = "Kubernetes external-dns"
-}
 
-resource "google_service_account" "dns01_solver" {
-  account_id = "dns01-solver"
-}
+
 
 locals {
   workload_pool      = "${data.google_project.default.project_id}.svc.id.goog"
@@ -124,22 +118,6 @@ resource "google_container_node_pool" "pool1" {
   }
 }
 
-#data "google_compute_instance_group" "instance_groups" {
-#  for_each  = toset(google_container_node_pool.pool1.instance_group_urls)
-#  self_link = each.value
-#}
-
-#data "google_compute_instance_template" "template" {
-#  for_each = toset(values(data.google_compute_instance_group.instance_groups)[*].name)
-#  project = data.google_project.default.project_id
-#  name = trimsuffix(each.value, "-grp")
-#}
-
-#data "google_compute_instance" "instances" {
-#  for_each  = toset(flatten(values(data.google_compute_instance_group.instance_groups)[*].instances))
-#  self_link = each.value
-#}
-
 data "google_client_config" "provider" {}
 
 locals {
@@ -168,73 +146,6 @@ provider "helm" {
   }
 }
 
-locals {
-  cert_manager_serviceAccount = "cert-manager"
-  cert_manager_namespace      = "cert-manager"
-  external_dns_serviceAccount = "external-dns"
-  external_dns_namespace      = "external-dns"
-}
-
-resource "google_project_iam_member" "dns01_solver" {
-  member  = "serviceAccount:${google_service_account.dns01_solver.email}"
-  project = data.google_project.default.project_id
-  role    = "roles/dns.admin"
-}
-
-resource "google_project_iam_member" "external_dns" {
-  member  = "serviceAccount:${google_service_account.external_dns.email}"
-  project = data.google_project.default.project_id
-  role    = "roles/dns.admin"
-}
-
-resource "google_service_account_iam_member" "dns01_solver" {
-  member             = "serviceAccount:${local.workload_pool}[${local.cert_manager_namespace}/${local.cert_manager_serviceAccount}]"
-  role               = "roles/iam.workloadIdentityUser"
-  service_account_id = google_service_account.dns01_solver.id
-}
-
-resource "google_service_account_iam_member" "external_dns" {
-  member             = "serviceAccount:${local.workload_pool}[${local.external_dns_namespace}/${local.external_dns_serviceAccount}]"
-  role               = "roles/iam.workloadIdentityUser"
-  service_account_id = google_service_account.external_dns.id
-}
-
-resource "google_compute_address" "nginx" {
-  name = "xyz"
-}
-
-resource "google_artifact_registry_repository" "demo" {
-  #  location      = "us-central1"
-  repository_id = "my-repository"
-  description   = "example docker repository"
-  format        = "DOCKER"
-}
-
-resource "google_artifact_registry_repository_iam_binding" "admin" {
-  location   = google_artifact_registry_repository.demo.location
-  repository = google_artifact_registry_repository.demo.name
-  role       = "roles/artifactregistry.admin"
-  members = [
-    "user:${var.admin_user_email}",
-  ]
-}
-
-resource "google_artifact_registry_repository_iam_binding" "writer" {
-  location   = google_artifact_registry_repository.demo.location
-  repository = google_artifact_registry_repository.demo.name
-  role       = "roles/artifactregistry.writer"
-  members    = [for e in var.engineers : "user:${e}"]
-}
-
-resource "google_artifact_registry_repository_iam_binding" "reader" {
-  location   = google_artifact_registry_repository.demo.location
-  repository = google_artifact_registry_repository.demo.name
-  role       = "roles/artifactregistry.reader"
-  members = [
-    "serviceAccount:${google_service_account.node_pool.email}",
-  ]
-}
-
 resource "google_dns_managed_zone" "zone" {
   name     = "z1"
   dns_name = "z1.${var.root_domain}."
@@ -248,6 +159,41 @@ resource "google_compute_router" "main" {
   }
 }
 
+module "ingress_nginx" {
+  source            = "./modules/ingress-nginx"
+  authorized_blocks = var.authorized_blocks
+}
+
+module "cert_manager" {
+  source               = "./modules/cert-manager"
+  google_project_id    = data.google_project.default.project_id
+  workload_pool        = local.workload_pool
+  namespace            = "cert-manager"
+  serviceAccount       = "cert-manager"
+  acme_account_email   = var.admin_user_email
+  hosted_zone_name     = google_dns_managed_zone.zone.name
+  dns_zone             = local.sub_domain
+  http01_ingress_class = "nginx"
+}
+
+module "external_dns" {
+  source            = "./modules/external-dns"
+  google_project_id = data.google_project.default.project_id
+  workload_pool     = local.workload_pool
+  namespace         = "external-dns"
+  serviceAccount    = "external-dns"
+  dns_zone          = local.sub_domain
+}
+
+module "registry" {
+  source                 = "./modules/registry"
+  user_admins            = [var.admin_user_email]
+  user_writers           = var.engineers
+  serviceaccount_readers = [google_service_account.node_pool.email]
+  registry_name          = "my-repository"
+  registry_description   = "example docker repository"
+}
+
 resource "google_compute_router_nat" "main" {
   name   = "${google_compute_network.vpc.name}-nat"
   router = google_compute_router.main.name
@@ -259,149 +205,6 @@ resource "google_compute_router_nat" "main" {
     name                    = google_compute_subnetwork.net.name
     source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
   }
-}
-
-resource "helm_release" "ingress_nginx" {
-  repository       = "https://kubernetes.github.io/ingress-nginx"
-  chart            = "ingress-nginx"
-  version          = "4.2.0"
-  name             = "ingress-nginx"
-  namespace        = "ingress-nginx"
-  create_namespace = true
-  atomic           = true
-  cleanup_on_fail  = true
-  #  timeout          = 120
-  set {
-    name  = "controller.service.loadBalancerIP"
-    value = google_compute_address.nginx.address
-  }
-  set {
-    name  = "controller.service.loadBalancerSourceRanges"
-    value = "{${join(",", values(var.authorized_blocks))}}"
-  }
-}
-
-resource "helm_release" "cert_manager" {
-  depends_on = [
-    google_service_account_iam_member.dns01_solver
-  ]
-  repository       = "https://charts.jetstack.io"
-  chart            = "cert-manager"
-  version          = "v1.9.0"
-  name             = "cert-manager"
-  namespace        = local.cert_manager_namespace
-  create_namespace = true
-  atomic           = true
-  cleanup_on_fail  = true
-  recreate_pods    = true
-  set {
-    name  = "installCRDs"
-    value = "true"
-  }
-  set {
-    name  = "serviceAccount.name"
-    value = local.cert_manager_serviceAccount
-  }
-  set {
-    name  = "serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account"
-    value = google_service_account.dns01_solver.email
-  }
-  set {
-    name  = "extraArgs"
-    value = "{--enable-certificate-owner-ref=true}"
-  }
-}
-
-resource "helm_release" "external_dns" {
-  repository       = "https://kubernetes-sigs.github.io/external-dns/"
-  chart            = "external-dns"
-  name             = "external-dns"
-  version          = "1.10.1"
-  namespace        = local.external_dns_namespace
-  create_namespace = true
-  atomic           = true
-  cleanup_on_fail  = true
-  set {
-    name  = "serviceAccount.name"
-    value = local.external_dns_serviceAccount
-  }
-  set {
-    name  = "serviceAccount.annotations.iam\\.gke\\.io/gcp-service-account"
-    value = google_service_account.external_dns.email
-  }
-  set {
-    name  = "provider"
-    value = "google"
-  }
-  set {
-    name  = "domainFilters"
-    value = "{${trimsuffix(google_dns_managed_zone.zone.dns_name, ".")}}"
-  }
-  set {
-    name  = "sources"
-    value = "{ingress}"
-  }
-  set {
-    name  = "policy"
-    value = "sync"
-  }
-  set_sensitive {
-    name  = "extraArgs"
-    value = "{--google-project=${data.google_project.default.project_id}}"
-  }
-}
-
-locals {
-  cluster_issuers = {
-    letsencrypt-staging = "https://acme-staging-v02.api.letsencrypt.org/directory"
-    letsencrypt-prod    = "https://acme-v02.api.letsencrypt.org/directory"
-  }
-}
-
-resource "kubectl_manifest" "cluster_issuers" {
-  for_each = local.cluster_issuers
-  depends_on = [
-    helm_release.cert_manager
-  ]
-  yaml_body = yamlencode({
-    apiVersion = "cert-manager.io/v1"
-    kind       = "ClusterIssuer"
-    metadata = {
-      name      = each.key
-      namespace = "cert-manager"
-    }
-    spec = {
-      acme = {
-        server = each.value
-        email  = var.admin_user_email
-        privateKeySecretRef = {
-          name = each.key
-        }
-        solvers = [
-          {
-            dns01 = {
-              cloudDNS = {
-                project        = data.google_project.default.project_id
-                hostedZoneName = google_dns_managed_zone.zone.name
-              }
-            }
-            selector = {
-              dnsZones = [
-                local.sub_domain
-              ]
-            }
-          },
-          {
-            http01 = {
-              ingress = {
-                class = "nginx"
-              }
-            }
-          }
-        ]
-      }
-    }
-  })
 }
 
 resource "kubernetes_role" "engineer" {
@@ -454,83 +257,6 @@ locals {
   ingress_host_mapping = { for n in local.ingress_names : n => "${n}.${local.sub_domain}" }
 }
 
-
-#resource "kubectl_manifest" "managed_cert" {
-#  yaml_body = yamlencode({
-#    apiVersion = "networking.gke.io/v1"
-#    kind       = "ManagedCertificate"
-#    metadata = {
-#      name = "x-managed-cert"
-#    }
-#    spec = {
-#      domains = [
-#        local.ingress_host_x
-#      ]
-#    }
-#  })
-#}
-#
-resource "kubernetes_deployment" "nginx" {
-  metadata {
-    name = "xyz"
-  }
-  spec {
-    selector {
-      match_labels = {
-        app = "xyz"
-      }
-    }
-    template {
-      metadata {
-        labels = {
-          app : "xyz"
-        }
-      }
-      spec {
-        container {
-          name  = "nginx"
-          image = "nginx"
-          port {
-            container_port = 80
-            name           = "http"
-          }
-        }
-      }
-    }
-  }
-}
-
-resource "kubernetes_service" "nginx" {
-  metadata {
-    name = "xyz"
-    annotations = {
-      "cloud.google.com/neg" : "{\"ingress\": true}"
-    }
-  }
-  spec {
-    selector = {
-      app = kubernetes_deployment.nginx.spec[0].template[0].metadata[0].labels.app
-    }
-    port {
-      port        = 80
-      target_port = "http"
-    }
-    type = "ClusterIP"
-  }
-  lifecycle {
-    //noinspection HILUnresolvedReference
-    ignore_changes = [
-      metadata[0].annotations
-    ]
-  }
-}
-
-locals {
-  #  node_pool_tags = setunion(values(data.google_compute_instance.instances)[*].tags...)
-  #  node_pool_tags = flatten(values(data.google_compute_instance_template.template)[*].tags)
-
-}
-
 resource "google_compute_firewall" "default" {
   name      = "test-firewall"
   network   = google_compute_network.vpc.name
@@ -543,44 +269,4 @@ resource "google_compute_firewall" "default" {
 
   target_tags   = google_container_node_pool.pool1.node_config[0].tags
   source_ranges = [google_container_cluster.primary.private_cluster_config[0].master_ipv4_cidr_block]
-}
-
-resource "kubernetes_ingress_v1" "nginx" {
-  for_each = local.ingress_host_mapping
-  metadata {
-    name = each.key
-    annotations = {
-      "cert-manager.io/cluster-issuer" : "letsencrypt-staging"
-      #      "cert-manager.io/cluster-issuer": "letsencrypt-prod"
-      "external-dns.alpha.kubernetes.io/ttl" : "1m"
-      #      "kubernetes.io/ingress.global-static-ip-name" : google_compute_global_address.nginx.name
-      #      "networking.gke.io/managed-certificates" : kubectl_manifest.managed_cert.name
-    }
-  }
-  spec {
-    ingress_class_name = "nginx"
-    tls {
-      hosts = [
-        each.value
-      ]
-      secret_name = "${each.key}-tls"
-    }
-    rule {
-      host = each.value
-      http {
-        path {
-          path      = "/"
-          path_type = "Prefix"
-          backend {
-            service {
-              name = kubernetes_service.nginx.metadata[0].name
-              port {
-                number = kubernetes_service.nginx.spec[0].port[0].port
-              }
-            }
-          }
-        }
-      }
-    }
-  }
 }
