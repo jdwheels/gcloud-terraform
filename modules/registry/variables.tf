@@ -22,3 +22,7 @@ variable "user_writers" {
 variable "user_admins" {
   type = set(string)
 }
+
+variable "location" {
+  type = string
+}

@@ -156,41 +156,6 @@ resource "google_compute_router" "main" {
   }
 }
 
-module "ingress_nginx" {
-  source            = "./modules/ingress-nginx"
-  authorized_blocks = var.authorized_blocks
-}
-
-module "cert_manager" {
-  source               = "./modules/cert-manager"
-  google_project_id    = data.google_project.default.project_id
-  workload_pool        = local.workload_pool
-  namespace            = "cert-manager"
-  serviceAccount       = "cert-manager"
-  acme_account_email   = var.admin_user_email
-  hosted_zone_name     = google_dns_managed_zone.zone.name
-  dns_zone             = local.sub_domain
-  http01_ingress_class = "nginx"
-}
-
-module "external_dns" {
-  source            = "./modules/external-dns"
-  google_project_id = data.google_project.default.project_id
-  workload_pool     = local.workload_pool
-  namespace         = "external-dns"
-  serviceAccount    = "external-dns"
-  dns_zone          = local.sub_domain
-}
-
-module "registry" {
-  source                 = "./modules/registry"
-  user_admins            = [var.admin_user_email]
-  user_writers           = var.engineers
-  serviceaccount_readers = [google_service_account.node_pool.email]
-  registry_name          = var.docker_registry_name
-  registry_description   = var.docker_registry_description
-}
-
 resource "google_compute_router_nat" "main" {
   name   = "${google_compute_network.vpc.name}-nat"
   router = google_compute_router.main.name
@@ -204,7 +169,23 @@ resource "google_compute_router_nat" "main" {
   }
 }
 
+resource "google_compute_firewall" "default" {
+  name      = "test-firewall"
+  network   = google_compute_network.vpc.name
+  direction = "INGRESS"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["8443"]
+  }
+
+  target_tags   = google_container_node_pool.pool1.node_config[0].tags
+  source_ranges = [google_container_cluster.primary.private_cluster_config[0].master_ipv4_cidr_block]
+}
+
+
 resource "kubernetes_role" "engineer" {
+  depends_on = [google_container_node_pool.pool1]
   metadata {
     name = "engineer"
   }
@@ -231,6 +212,7 @@ resource "kubernetes_role" "engineer" {
 }
 
 resource "kubernetes_role_binding" "engineer" {
+  depends_on = [google_container_node_pool.pool1]
   metadata {
     name = "engineer"
   }
@@ -254,16 +236,55 @@ locals {
   ingress_host_mapping = { for n in local.ingress_names : n => "${n}.${local.sub_domain}" }
 }
 
-resource "google_compute_firewall" "default" {
-  name      = "test-firewall"
-  network   = google_compute_network.vpc.name
-  direction = "INGRESS"
+module "ingress_nginx" {
+  depends_on = [
+    google_container_node_pool.pool1,
+    google_compute_router_nat.main,
+    google_compute_firewall.default,
+  ]
+  source            = "./modules/ingress-nginx"
+  authorized_blocks = var.authorized_blocks
+}
 
-  allow {
-    protocol = "tcp"
-    ports    = ["8443"]
-  }
+module "cert_manager" {
+  depends_on = [
+    google_container_node_pool.pool1,
+    google_compute_router_nat.main
+  ]
+  source               = "./modules/cert-manager"
+  google_project_id    = data.google_project.default.project_id
+  workload_pool        = local.workload_pool
+  namespace            = "cert-manager"
+  serviceAccount       = "cert-manager"
+  acme_account_email   = var.admin_user_email
+  hosted_zone_name     = google_dns_managed_zone.zone.name
+  dns_zone             = local.sub_domain
+  http01_ingress_class = "nginx"
+}
 
-  target_tags   = google_container_node_pool.pool1.node_config[0].tags
-  source_ranges = [google_container_cluster.primary.private_cluster_config[0].master_ipv4_cidr_block]
+module "external_dns" {
+  depends_on = [
+    google_container_node_pool.pool1,
+    google_compute_router_nat.main
+  ]
+  source            = "./modules/external-dns"
+  google_project_id = data.google_project.default.project_id
+  workload_pool     = local.workload_pool
+  namespace         = "external-dns"
+  serviceAccount    = "external-dns"
+  dns_zone          = local.sub_domain
+}
+
+module "registry" {
+  depends_on = [
+    google_container_node_pool.pool1,
+    google_compute_router_nat.main
+  ]
+  source                 = "./modules/registry"
+  user_admins            = [var.admin_user_email]
+  user_writers           = var.engineers
+  serviceaccount_readers = [google_service_account.node_pool.email]
+  registry_name          = var.docker_registry_name
+  registry_description   = var.docker_registry_description
+  location               = var.region
 }

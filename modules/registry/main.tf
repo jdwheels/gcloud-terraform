@@ -1,5 +1,5 @@
 resource "google_artifact_registry_repository" "demo" {
-  #  location      = "us-central1"
+  location      = var.location
   repository_id = var.registry_name
   description   = var.registry_description
   format        = var.registry_format
