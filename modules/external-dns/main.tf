@@ -24,6 +24,7 @@ resource "helm_release" "external_dns" {
   create_namespace = true
   atomic           = true
   cleanup_on_fail  = true
+  recreate_pods    = true
   set {
     name  = "serviceAccount.name"
     value = var.serviceAccount
