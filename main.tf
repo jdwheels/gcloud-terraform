@@ -25,6 +25,18 @@ provider "google" {
   zone    = var.zone
 }
 
+resource "google_project_service" "gke" {
+  service = "container.googleapis.com"
+}
+
+resource "google_project_service" "artifact" {
+  service = "artifactregistry.googleapis.com"
+}
+
+resource "google_project_service" "dns" {
+  service = "dns.googleapis.com"
+}
+
 resource "google_compute_network" "vpc" {
   name                    = "primary"
   auto_create_subnetworks = false
@@ -45,17 +57,13 @@ resource "google_compute_subnetwork" "net" {
   private_ip_google_access = true
 }
 
-data "google_project" "default" {
-  project_id = var.project_id
-}
-
 resource "google_service_account" "node_pool" {
   account_id   = "node-pool"
   display_name = "Node Pool"
 }
 
 locals {
-  workload_pool      = "${data.google_project.default.project_id}.svc.id.goog"
+  workload_pool      = "${var.project_id}.svc.id.goog"
   node_tags          = ["poo1-node"]
   kubernetes_version = "1.23.5-gke.1503"
 }
@@ -65,6 +73,9 @@ data "google_container_engine_versions" "version" {
 }
 
 resource "google_container_cluster" "primary" {
+  depends_on = [
+    google_project_service.gke
+  ]
   name                     = "primary"
   subnetwork               = google_compute_subnetwork.net.name
   initial_node_count       = 1
@@ -144,6 +155,9 @@ provider "helm" {
 }
 
 resource "google_dns_managed_zone" "zone" {
+  depends_on = [
+    google_project_service.dns
+  ]
   name     = var.zone_name
   dns_name = "${var.zone_name}.${var.root_domain}."
 }
@@ -252,7 +266,7 @@ module "cert_manager" {
     google_compute_router_nat.main
   ]
   source               = "./modules/cert-manager"
-  google_project_id    = data.google_project.default.project_id
+  google_project_id    = var.project_id
   workload_pool        = local.workload_pool
   namespace            = "cert-manager"
   serviceAccount       = "cert-manager"
@@ -268,7 +282,7 @@ module "external_dns" {
     google_compute_router_nat.main
   ]
   source            = "./modules/external-dns"
-  google_project_id = data.google_project.default.project_id
+  google_project_id = var.project_id
   workload_pool     = local.workload_pool
   namespace         = "external-dns"
   serviceAccount    = "external-dns"
@@ -277,7 +291,7 @@ module "external_dns" {
 
 module "registry" {
   depends_on = [
-    google_container_node_pool.pool1,
+    google_project_service.artifact,
     google_compute_router_nat.main
   ]
   source                 = "./modules/registry"
