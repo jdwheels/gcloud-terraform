@@ -16,6 +16,10 @@ terraform {
       source  = "gavinbunney/kubectl"
       version = "~> 1.0"
     }
+    github = {
+      source  = "integrations/github"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -190,7 +194,14 @@ resource "google_compute_firewall" "default" {
 
   allow {
     protocol = "tcp"
-    ports    = ["8443"]
+    ports = [
+      #      ingress-nginx
+      "8443",
+      #      istio:
+      "10250",
+      "443",
+      "15017"
+    ]
   }
 
   target_tags   = google_container_node_pool.pool1.node_config[0].tags
@@ -301,4 +312,21 @@ module "registry" {
   registry_name          = var.docker_registry_name
   registry_description   = var.docker_registry_description
   location               = var.region
+}
+
+provider "github" {
+  alias = "github_istio"
+  owner = "istio"
+}
+
+module "istio" {
+  depends_on = [
+    google_container_node_pool.pool1,
+    google_compute_router_nat.main,
+    google_compute_firewall.default
+  ]
+  source = "./modules/istio"
+  providers = {
+    github = github.github_istio
+  }
 }
