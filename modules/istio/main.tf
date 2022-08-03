@@ -84,3 +84,51 @@ resource "kubectl_manifest" "addons" {
   }
   yaml_body = each.value
 }
+
+resource "google_compute_address" "istio" {
+  name = "istio"
+}
+
+resource "kubernetes_manifest" "cert" {
+  manifest = {
+    apiVersion = "cert-manager.io/v1"
+    kind       = "Certificate"
+    metadata = {
+      name      = "istio-wildcard-tls"
+      namespace = "default"
+    }
+    spec = {
+      secretName : "istio-wildcard-tls"
+      issuerRef = {
+        name = "letsencrypt-prod"
+        kind = "ClusterIssuer"
+      }
+      commonName = "*.istio.${var.dns_zone}"
+      dnsNames = [
+        "istio.${var.dns_zone}",
+        "*.istio.${var.dns_zone}"
+      ]
+    }
+  }
+}
+
+resource "helm_release" "default_gateway" {
+  depends_on = [
+    kubernetes_manifest.cert
+  ]
+  repository      = local.istio_repository
+  chart           = "gateway"
+  namespace       = "default"
+  name            = "istio-gateway"
+  version         = local.istio_version
+  atomic          = true
+  cleanup_on_fail = true
+  set {
+    name  = "service.loadBalancerIP"
+    value = google_compute_address.istio.address
+  }
+  set {
+    name  = "service.loadBalancerSourceRanges"
+    value = "{${join(",", values(var.authorized_blocks))}}"
+  }
+}

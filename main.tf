@@ -325,8 +325,10 @@ module "istio" {
     google_compute_router_nat.main,
     google_compute_firewall.default
   ]
-  source = "./modules/istio"
+  source            = "./modules/istio"
+  authorized_blocks = var.authorized_blocks
   providers = {
     github = github.github_istio
   }
+  dns_zone = local.sub_domain
 }

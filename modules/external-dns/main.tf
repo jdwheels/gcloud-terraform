@@ -43,7 +43,7 @@ resource "helm_release" "external_dns" {
   }
   set {
     name  = "sources"
-    value = "{ingress}"
+    value = "{ingress,istio-gateway}"
   }
   set {
     name  = "policy"
