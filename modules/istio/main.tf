@@ -38,6 +38,16 @@ resource "helm_release" "istiod" {
   version         = local.istio_version
   atomic          = true
   cleanup_on_fail = true
+  recreate_pods = true
+  set {
+    name = "meshConfig.outboundTrafficPolicy.mode"
+#    value = "ALLOW_ANY"
+    value = "REGISTRY_ONLY"
+  }
+  set {
+    name = "telemetry.v2.accessLogPolicy.enabled"
+    value = "true"
+  }
 }
 
 locals {
@@ -49,17 +59,22 @@ data "github_repository" "istio" {
   full_name = "istio/istio"
 }
 
-data "github_repository_file" "addons" {
-  for_each   = local.addons
-  file       = "samples/addons/${each.value}.yaml"
-  branch     = "release-1.14"
-  repository = data.github_repository.istio.name
+data "http" "istio_addons" {
+  for_each = local.addons
+  url      = "https://raw.githubusercontent.com/istio/istio/${local.istio_version}/samples/addons/${each.value}.yaml"
 }
+
+#data "github_repository_file" "addons" {
+#  for_each   = local.addons
+#  file       = "samples/addons/${each.value}.yaml"
+#  branch     = local.istio_version
+#  repository = data.github_repository.istio.name
+#}
 
 
 data "kubectl_file_documents" "addons" {
   for_each = local.addons
-  content  = data.github_repository_file.addons[each.value].content
+  content  = data.http.istio_addons[each.value].body
 }
 
 
@@ -75,15 +90,20 @@ locals {
   ])
 }
 
-resource "kubectl_manifest" "addons" {
-  depends_on = [
-    helm_release.istiod
-  ]
-  for_each = {
-    for manifest in local.manifests : manifest["id"] => manifest["content"]
-  }
-  yaml_body = each.value
-}
+#resource "kubectl_manifest" "addons" {
+#  depends_on = [
+#    helm_release.istiod,
+#  ]
+#  for_each = {
+#    for manifest in local.manifests : manifest["id"] => manifest["content"]
+#  }
+#  yaml_body = each.value
+#  lifecycle {
+#    ignore_changes = [
+#      yaml_incluster
+#    ]
+#  }
+#}
 
 resource "google_compute_address" "istio" {
   name = "istio"
@@ -118,8 +138,8 @@ resource "helm_release" "default_gateway" {
   ]
   repository      = local.istio_repository
   chart           = "gateway"
-  namespace       = "default"
-  name            = "istio-gateway"
+  namespace       = "istio-system"
+  name            = "istio-ingressgateway"
   version         = local.istio_version
   atomic          = true
   cleanup_on_fail = true
@@ -130,5 +150,19 @@ resource "helm_release" "default_gateway" {
   set {
     name  = "service.loadBalancerSourceRanges"
     value = "{${join(",", values(var.authorized_blocks))}}"
+  }
+}
+
+resource "helm_release" "egress_gateway" {
+  repository      = local.istio_repository
+  chart           = "gateway"
+  namespace       = "istio-system"
+  name            = "istio-egressgateway"
+  version         = local.istio_version
+  atomic          = true
+  cleanup_on_fail = true
+  set {
+    name  = "service.type"
+    value = "ClusterIP"
   }
 }

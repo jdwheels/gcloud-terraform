@@ -20,6 +20,10 @@ terraform {
       source  = "integrations/github"
       version = "~> 4.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -28,6 +32,8 @@ provider "google" {
   region  = var.region
   zone    = var.zone
 }
+
+provider "http" {}
 
 resource "google_project_service" "gke" {
   service = "container.googleapis.com"
@@ -121,7 +127,9 @@ resource "google_container_node_pool" "pool1" {
       mode = "GKE_METADATA" # seems enabled by default?
     }
     tags            = local.node_tags
-    preemptible     = true
+    spot = true
+    disk_size_gb = 25
+    disk_type = "pd-ssd"
     machine_type    = var.machine_type
     service_account = google_service_account.node_pool.email
     oauth_scopes = [
@@ -319,16 +327,16 @@ provider "github" {
   owner = "istio"
 }
 
-module "istio" {
-  depends_on = [
-    google_container_node_pool.pool1,
-    google_compute_router_nat.main,
-    google_compute_firewall.default
-  ]
-  source            = "./modules/istio"
-  authorized_blocks = var.authorized_blocks
-  providers = {
-    github = github.github_istio
-  }
-  dns_zone = local.sub_domain
-}
+#module "istio" {
+#  depends_on = [
+#    google_container_node_pool.pool1,
+#    google_compute_router_nat.main,
+#    google_compute_firewall.default
+#  ]
+#  source            = "./modules/istio"
+#  authorized_blocks = var.authorized_blocks
+#  providers = {
+#    github = github.github_istio
+#  }
+#  dns_zone = local.sub_domain
+#}
