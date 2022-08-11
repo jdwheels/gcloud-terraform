@@ -5,3 +5,7 @@ variable "authorized_blocks" {
 variable "dns_zone" {
   type = string
 }
+
+variable "enabled" {
+  type = bool
+}

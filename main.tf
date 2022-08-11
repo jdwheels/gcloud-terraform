@@ -75,7 +75,7 @@ resource "google_service_account" "node_pool" {
 locals {
   workload_pool      = "${var.project_id}.svc.id.goog"
   node_tags          = ["poo1-node"]
-  kubernetes_version = "1.23.5-gke.1503"
+  kubernetes_version = var.kubernetes_version
 }
 
 data "google_container_engine_versions" "version" {
@@ -127,9 +127,9 @@ resource "google_container_node_pool" "pool1" {
       mode = "GKE_METADATA" # seems enabled by default?
     }
     tags            = local.node_tags
-    spot = true
-    disk_size_gb = 25
-    disk_type = "pd-ssd"
+    spot            = true
+    disk_size_gb    = 25
+    disk_type       = "pd-ssd"
     machine_type    = var.machine_type
     service_account = google_service_account.node_pool.email
     oauth_scopes = [
@@ -327,16 +327,17 @@ provider "github" {
   owner = "istio"
 }
 
-#module "istio" {
-#  depends_on = [
-#    google_container_node_pool.pool1,
-#    google_compute_router_nat.main,
-#    google_compute_firewall.default
-#  ]
-#  source            = "./modules/istio"
-#  authorized_blocks = var.authorized_blocks
-#  providers = {
-#    github = github.github_istio
-#  }
-#  dns_zone = local.sub_domain
-#}
+module "istio" {
+  depends_on = [
+    google_container_node_pool.pool1,
+    google_compute_router_nat.main,
+    google_compute_firewall.default
+  ]
+  source            = "./modules/istio"
+  authorized_blocks = var.authorized_blocks
+  providers = {
+    github = github.github_istio
+  }
+  dns_zone = local.sub_domain
+  enabled  = var.istio_enabled
+}

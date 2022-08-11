@@ -51,3 +51,11 @@ variable "docker_registry_description" {
 variable "zone_name" {
   type = string
 }
+
+variable "kubernetes_version" {
+  type = string
+}
+
+variable "istio_enabled" {
+  type = bool
+}

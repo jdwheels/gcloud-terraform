@@ -16,7 +16,13 @@ locals {
   istio_version    = "1.14.2"
 }
 
+moved {
+  from = helm_release.istio_base
+  to   = helm_release.istio_base[0]
+}
+
 resource "helm_release" "istio_base" {
+  count            = var.enabled ? 1 : 0
   repository       = local.istio_repository
   chart            = "base"
   namespace        = "istio-system"
@@ -27,7 +33,13 @@ resource "helm_release" "istio_base" {
   cleanup_on_fail  = true
 }
 
+moved {
+  from = helm_release.istiod
+  to   = helm_release.istiod[0]
+}
+
 resource "helm_release" "istiod" {
+  count = var.enabled ? 1 : 0
   depends_on = [
     helm_release.istio_base
   ]
@@ -38,14 +50,14 @@ resource "helm_release" "istiod" {
   version         = local.istio_version
   atomic          = true
   cleanup_on_fail = true
-  recreate_pods = true
+  recreate_pods   = true
   set {
     name = "meshConfig.outboundTrafficPolicy.mode"
-#    value = "ALLOW_ANY"
+    #    value = "ALLOW_ANY"
     value = "REGISTRY_ONLY"
   }
   set {
-    name = "telemetry.v2.accessLogPolicy.enabled"
+    name  = "telemetry.v2.accessLogPolicy.enabled"
     value = "true"
   }
 }
@@ -105,11 +117,24 @@ locals {
 #  }
 #}
 
+moved {
+  from = google_compute_address.istio
+  to   = google_compute_address.istio[0]
+}
+
 resource "google_compute_address" "istio" {
-  name = "istio"
+  count = var.enabled ? 1 : 0
+  name  = "istio"
+}
+
+
+moved {
+  from = kubernetes_manifest.cert
+  to   = kubernetes_manifest.cert[0]
 }
 
 resource "kubernetes_manifest" "cert" {
+  count = var.enabled ? 1 : 0
   manifest = {
     apiVersion = "cert-manager.io/v1"
     kind       = "Certificate"
@@ -132,7 +157,13 @@ resource "kubernetes_manifest" "cert" {
   }
 }
 
+moved {
+  from = helm_release.default_gateway
+  to   = helm_release.default_gateway[0]
+}
+
 resource "helm_release" "default_gateway" {
+  count = var.enabled ? 1 : 0
   depends_on = [
     kubernetes_manifest.cert
   ]
@@ -145,7 +176,7 @@ resource "helm_release" "default_gateway" {
   cleanup_on_fail = true
   set {
     name  = "service.loadBalancerIP"
-    value = google_compute_address.istio.address
+    value = google_compute_address.istio[0].address
   }
   set {
     name  = "service.loadBalancerSourceRanges"
@@ -153,7 +184,13 @@ resource "helm_release" "default_gateway" {
   }
 }
 
+moved {
+  from = helm_release.egress_gateway
+  to   = helm_release.egress_gateway[0]
+}
+
 resource "helm_release" "egress_gateway" {
+  count           = var.enabled ? 1 : 0
   repository      = local.istio_repository
   chart           = "gateway"
   namespace       = "istio-system"
