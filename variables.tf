@@ -59,3 +59,20 @@ variable "kubernetes_version" {
 variable "istio_enabled" {
   type = bool
 }
+
+variable "node_pools" {
+  type = map(
+    object({
+      count     = number
+      disk_size = number
+      disk_type = string
+      spot      = bool
+      type      = string
+      taints = list(object({
+        key    = string
+        value  = string
+        effect = string
+      }))
+    })
+  )
+}

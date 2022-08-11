@@ -116,22 +116,30 @@ resource "google_container_cluster" "primary" {
   }
 }
 
-resource "google_container_node_pool" "pool1" {
-  name       = "pool1"
+resource "google_container_node_pool" "pools" {
+  for_each   = var.node_pools
+  name       = each.key
   cluster    = google_container_cluster.primary.name
-  node_count = var.node_count
+  node_count = each.value["count"]
   version    = local.kubernetes_version
 
   node_config {
     workload_metadata_config {
       mode = "GKE_METADATA" # seems enabled by default?
     }
-    tags            = local.node_tags
-    spot            = true
-    disk_size_gb    = 25
-    disk_type       = "pd-ssd"
-    machine_type    = var.machine_type
-    service_account = google_service_account.node_pool.email
+    tags         = local.node_tags
+    spot         = each.value["spot"]
+    disk_size_gb = each.value["disk_size"]
+    disk_type    = each.value["disk_type"]
+    machine_type = each.value["type"]
+    dynamic "taint" {
+      for_each = each.value["taints"]
+      content {
+        key    = taint.value["key"]
+        value  = taint.value["value"]
+        effect = taint.value["effect"]
+      }
+    }
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
     ]
@@ -212,13 +220,13 @@ resource "google_compute_firewall" "default" {
     ]
   }
 
-  target_tags   = google_container_node_pool.pool1.node_config[0].tags
+  target_tags   = local.node_tags
   source_ranges = [google_container_cluster.primary.private_cluster_config[0].master_ipv4_cidr_block]
 }
 
 
 resource "kubernetes_role" "engineer" {
-  depends_on = [google_container_node_pool.pool1]
+  depends_on = [google_container_node_pool.pools]
   metadata {
     name = "engineer"
   }
@@ -245,7 +253,7 @@ resource "kubernetes_role" "engineer" {
 }
 
 resource "kubernetes_role_binding" "engineer" {
-  depends_on = [google_container_node_pool.pool1]
+  depends_on = [google_container_node_pool.pools]
   metadata {
     name = "engineer"
   }
@@ -271,7 +279,7 @@ locals {
 
 module "ingress_nginx" {
   depends_on = [
-    google_container_node_pool.pool1,
+    google_container_node_pool.pools,
     google_compute_router_nat.main,
     google_compute_firewall.default,
   ]
@@ -281,7 +289,7 @@ module "ingress_nginx" {
 
 module "cert_manager" {
   depends_on = [
-    google_container_node_pool.pool1,
+    google_container_node_pool.pools,
     google_compute_router_nat.main
   ]
   source               = "./modules/cert-manager"
@@ -297,7 +305,7 @@ module "cert_manager" {
 
 module "external_dns" {
   depends_on = [
-    google_container_node_pool.pool1,
+    google_container_node_pool.pools,
     google_compute_router_nat.main
   ]
   source            = "./modules/external-dns"
@@ -329,7 +337,7 @@ provider "github" {
 
 module "istio" {
   depends_on = [
-    google_container_node_pool.pool1,
+    google_container_node_pool.pools,
     google_compute_router_nat.main,
     google_compute_firewall.default
   ]
