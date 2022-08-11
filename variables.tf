@@ -76,3 +76,8 @@ variable "node_pools" {
     })
   )
 }
+
+variable "additional_static_ips" {
+  type = number
+  default = 0
+}

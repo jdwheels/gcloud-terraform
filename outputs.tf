@@ -7,3 +7,6 @@ output "zone_dns" {
 output "zone_name_servers" {
   value = google_dns_managed_zone.zone.name_servers
 }
+output "additional_static_ips" {
+  value = google_compute_address.additional[*].address
+}

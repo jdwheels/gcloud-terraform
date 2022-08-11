@@ -349,3 +349,8 @@ module "istio" {
   dns_zone = local.sub_domain
   enabled  = var.istio_enabled
 }
+
+resource "google_compute_address" "additional" {
+  count = var.additional_static_ips
+  name = "gke-static-${count.index}"
+}
