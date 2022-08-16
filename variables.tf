@@ -12,10 +12,6 @@ variable "root_domain" {
   type = string
 }
 
-variable "node_count" {
-  type = number
-}
-
 variable "ingress_names" {
   type = set(string)
 }
@@ -33,10 +29,6 @@ variable "region" {
 }
 
 variable "zone" {
-  type = string
-}
-
-variable "machine_type" {
   type = string
 }
 
