@@ -7,4 +7,4 @@ if [ -z "$X_PREFIX" ]; then
   exit 1;
 fi
 
-terraform apply -state "$X_PREFIX.terraform.tfstate" "$X_PREFIX.tfplan"
+terraform apply -state "$X_PREFIX.terraform.tfstate" "${@:2}" "$X_PREFIX.tfplan"
