@@ -67,6 +67,20 @@ resource "google_compute_subnetwork" "net" {
   private_ip_google_access = true
 }
 
+resource "google_compute_global_address" "services" {
+  name          = "primary-ip-range"
+  purpose       = "VPC_PEERING"
+  address_type  = "INTERNAL"
+  prefix_length = 20
+  network       = google_compute_network.vpc.id
+}
+
+resource "google_service_networking_connection" "services" {
+  service                 = "servicenetworking.googleapis.com"
+  network                 = google_compute_network.vpc.name
+  reserved_peering_ranges = [google_compute_global_address.services.name]
+}
+
 resource "google_service_account" "node_pool" {
   account_id   = "node-pool"
   display_name = "Node Pool"
@@ -368,4 +382,5 @@ module "database" {
   authorized_blocks  = var.authorized_blocks
   region             = var.region
   database_instances = var.database_instances
+  private_network    = google_compute_network.vpc.id
 }

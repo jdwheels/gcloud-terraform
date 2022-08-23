@@ -15,3 +15,7 @@ variable "database_instances" {
     })
   )
 }
+
+variable "private_network" {
+  type = string
+}

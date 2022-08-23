@@ -1,7 +1,3 @@
-data "google_compute_network" "primary" {
-  name = "primary"
-}
-
 resource "google_sql_database_instance" "instances" {
   for_each         = var.database_instances
   name             = each.key
@@ -16,7 +12,7 @@ resource "google_sql_database_instance" "instances" {
     }
     ip_configuration {
       ipv4_enabled    = true
-      private_network = data.google_compute_network.primary.id
+      private_network = var.private_network
       require_ssl     = false
       dynamic "authorized_networks" {
         for_each = var.authorized_blocks
