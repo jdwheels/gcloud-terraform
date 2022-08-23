@@ -362,3 +362,10 @@ module "storage" {
   workload_pool     = local.workload_pool
   region            = var.region
 }
+
+module "database" {
+  source = "./modules/database"
+  authorized_blocks = var.authorized_blocks
+  region = var.region
+  database_instances = var.database_instances
+}

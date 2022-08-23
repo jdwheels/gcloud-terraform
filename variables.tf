@@ -77,3 +77,13 @@ variable "additional_static_ips" {
 variable "buckets" {
   type = map(object({}))
 }
+
+variable "database_instances" {
+  type = map(
+    object({
+      version = string
+      users = list(string)
+      tier = string
+    })
+  )
+}
