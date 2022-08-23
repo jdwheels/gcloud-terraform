@@ -364,8 +364,8 @@ module "storage" {
 }
 
 module "database" {
-  source = "./modules/database"
-  authorized_blocks = var.authorized_blocks
-  region = var.region
+  source             = "./modules/database"
+  authorized_blocks  = var.authorized_blocks
+  region             = var.region
   database_instances = var.database_instances
 }

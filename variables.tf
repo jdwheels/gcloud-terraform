@@ -82,8 +82,8 @@ variable "database_instances" {
   type = map(
     object({
       version = string
-      users = list(string)
-      tier = string
+      users   = list(string)
+      tier    = string
     })
   )
 }
