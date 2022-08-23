@@ -73,3 +73,7 @@ variable "additional_static_ips" {
   type    = number
   default = 0
 }
+
+variable "buckets" {
+  type = map(object({}))
+}

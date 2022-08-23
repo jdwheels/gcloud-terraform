@@ -356,10 +356,8 @@ resource "google_compute_address" "additional" {
 }
 
 module "storage" {
-  source = "./modules/storage"
-  buckets = {
-    "default-bucket-x" : {}
-  }
+  source            = "./modules/storage"
+  buckets           = var.buckets
   google_project_id = var.project_id
   workload_pool     = local.workload_pool
   region            = var.region
