@@ -70,6 +70,6 @@ variable "node_pools" {
 }
 
 variable "additional_static_ips" {
-  type = number
+  type    = number
   default = 0
 }

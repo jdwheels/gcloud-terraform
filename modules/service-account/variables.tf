@@ -23,6 +23,6 @@ variable "service_account" {
 }
 
 variable "create_service_account" {
-  type = bool
+  type    = bool
   default = true
 }

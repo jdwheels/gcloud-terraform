@@ -9,3 +9,7 @@ variable "google_project_id" {
 variable "workload_pool" {
   type = string
 }
+
+variable "region" {
+  type = string
+}

@@ -352,14 +352,15 @@ module "istio" {
 
 resource "google_compute_address" "additional" {
   count = var.additional_static_ips
-  name = "gke-static-${count.index}"
+  name  = "gke-static-${count.index}"
 }
 
 module "storage" {
   source = "./modules/storage"
   buckets = {
-    "x": {}
+    "default-bucket-x" : {}
   }
   google_project_id = var.project_id
-  workload_pool = local.workload_pool
+  workload_pool     = local.workload_pool
+  region            = var.region
 }
