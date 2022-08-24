@@ -16,6 +16,7 @@ variable "workload_pool" {
 
 variable "namespace" {
   type = string
+  default = "default"
 }
 
 variable "service_account" {

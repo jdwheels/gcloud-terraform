@@ -383,4 +383,7 @@ module "database" {
   region             = var.region
   database_instances = var.database_instances
   private_network    = google_compute_network.vpc.id
+  service_account = var.database_service_account
+  project_id = var.project_id
+  workload_pool = local.workload_pool
 }

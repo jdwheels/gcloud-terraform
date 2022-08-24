@@ -87,3 +87,7 @@ variable "database_instances" {
     })
   )
 }
+
+variable "database_service_account" {
+  type = string
+}

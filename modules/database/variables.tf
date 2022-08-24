@@ -19,3 +19,15 @@ variable "database_instances" {
 variable "private_network" {
   type = string
 }
+
+variable "service_account" {
+  type = string
+}
+
+variable "project_id" {
+  type = string
+}
+
+variable "workload_pool" {
+  type = string
+}
