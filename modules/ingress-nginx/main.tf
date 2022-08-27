@@ -5,7 +5,7 @@ resource "google_compute_address" "nginx" {
 resource "helm_release" "ingress_nginx" {
   repository       = "https://kubernetes.github.io/ingress-nginx"
   chart            = "ingress-nginx"
-  version          = "4.2.0"
+  version          = "4.2.3"
   name             = "ingress-nginx"
   namespace        = "ingress-nginx"
   create_namespace = true

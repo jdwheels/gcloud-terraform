@@ -13,7 +13,7 @@ terraform {
 
 locals {
   istio_repository = "https://istio-release.storage.googleapis.com/charts"
-  istio_version    = "1.14.2"
+  istio_version    = "1.14.3"
 }
 
 moved {
