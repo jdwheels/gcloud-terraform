@@ -38,13 +38,13 @@ resource "google_sql_database_instance" "instances" {
 }
 
 module "service_account" {
-  source = "../service-account"
-  account_id = "gsa-${var.service_account}"
+  source                 = "../service-account"
+  account_id             = "gsa-${var.service_account}"
   create_service_account = false
-  google_project_id = var.project_id
-  workload_pool = var.workload_pool
-  service_account = var.service_account
-  namespace = "default"
+  google_project_id      = var.project_id
+  workload_pool          = var.workload_pool
+  service_account        = var.service_account
+  namespace              = "default"
 }
 
 resource "google_project_iam_member" "member" {
@@ -57,7 +57,7 @@ resource "google_sql_user" "app" {
   for_each = google_sql_database_instance.instances
   name     = trimsuffix(module.service_account.email, ".gserviceaccount.com")
   instance = each.value["name"]
-  type = "CLOUD_IAM_SERVICE_ACCOUNT"
+  type     = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
 
 #resource "google_sql_user" "admins" {
@@ -80,7 +80,7 @@ locals {
   db_users = flatten([
     for x in keys(var.database_instances) : [
       for u in var.database_instances[x].users : {
-        user = u,
+        user     = u,
         instance = x
       }
     ]
@@ -90,7 +90,7 @@ locals {
 
 resource "random_password" "admins" {
   for_each = local.db_users_map
-  length = 16
+  length   = 16
 }
 
 resource "google_sql_user" "admins" {

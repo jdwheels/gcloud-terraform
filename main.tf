@@ -125,7 +125,7 @@ resource "google_container_cluster" "primary" {
       for_each = var.authorized_blocks
       content {
         display_name = cidr_blocks.key
-        cidr_block = cidr_blocks.value
+        cidr_block   = cidr_blocks.value
       }
     }
   }
@@ -384,7 +384,7 @@ module "database" {
   region             = var.region
   database_instances = var.database_instances
   private_network    = google_compute_network.vpc.id
-  service_account = var.database_service_account
-  project_id = var.project_id
-  workload_pool = local.workload_pool
+  service_account    = var.database_service_account
+  project_id         = var.project_id
+  workload_pool      = local.workload_pool
 }
