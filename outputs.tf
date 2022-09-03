@@ -10,3 +10,6 @@ output "zone_name_servers" {
 output "additional_static_ips" {
   value = google_compute_address.additional[*].address
 }
+output "o" {
+  value = module.database.o
+}

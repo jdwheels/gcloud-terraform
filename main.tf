@@ -124,6 +124,7 @@ resource "google_container_cluster" "primary" {
     dynamic "cidr_blocks" {
       for_each = var.authorized_blocks
       content {
+        display_name = cidr_blocks.key
         cidr_block = cidr_blocks.value
       }
     }

@@ -3,6 +3,7 @@ resource "google_sql_database_instance" "instances" {
   name             = each.key
   database_version = each.value["version"]
   region           = var.region
+
   settings {
     disk_size = 50
 
@@ -57,4 +58,48 @@ resource "google_sql_user" "app" {
   name     = trimsuffix(module.service_account.email, ".gserviceaccount.com")
   instance = each.value["name"]
   type = "CLOUD_IAM_SERVICE_ACCOUNT"
+}
+
+#resource "google_sql_user" "admins" {
+#  for_each = { for x in var.database_instances : x  }
+#  instance = google_sql_database_instance[]
+#  name     = ""
+#}
+
+resource "null_resource" "x" {
+  for_each = local.db_users_map
+  provisioner "local-exec" {
+    command = "docker run --rm -e PGPASSWORD postgres psql -h ${google_sql_database_instance.instances[each.value["instance"]].public_ip_address} -U ${each.value["user"]} --dbname postgres -c 'SELECT 1'"
+    environment = {
+      PGPASSWORD = random_password.admins[each.key].result
+    }
+  }
+}
+
+locals {
+  db_users = flatten([
+    for x in keys(var.database_instances) : [
+      for u in var.database_instances[x].users : {
+        user = u,
+        instance = x
+      }
+    ]
+  ])
+  db_users_map = { for x in local.db_users : join("_", [x["instance"], x["user"]]) => x }
+}
+
+resource "random_password" "admins" {
+  for_each = local.db_users_map
+  length = 16
+}
+
+resource "google_sql_user" "admins" {
+  for_each = local.db_users_map
+  instance = each.value["instance"]
+  name     = each.value["user"]
+  password = random_password.admins[each.key].result
+}
+
+output "o" {
+  value = local.db_users_map
 }
