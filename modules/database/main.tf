@@ -38,6 +38,7 @@ resource "google_sql_database_instance" "instances" {
 }
 
 module "service_account" {
+  count = var.service_account == "" ? 0 : 1
   source                 = "../service-account"
   account_id             = "gsa-${var.service_account}"
   create_service_account = false
@@ -47,15 +48,26 @@ module "service_account" {
   namespace              = "default"
 }
 
+moved {
+  from = module.service_account
+  to = module.service_account[0]
+}
+
+moved {
+  from = google_project_iam_member.member
+  to = google_project_iam_member.member[0]
+}
+
 resource "google_project_iam_member" "member" {
-  member  = "serviceAccount:${module.service_account.email}"
+  count = var.service_account == "" ? 0 : 1
+  member  = "serviceAccount:${module.service_account[count.index].email}"
   project = var.project_id
   role    = "roles/cloudsql.editor"
 }
 
 resource "google_sql_user" "app" {
   for_each = google_sql_database_instance.instances
-  name     = trimsuffix(module.service_account.email, ".gserviceaccount.com")
+  name     = trimsuffix(module.service_account[0].email, ".gserviceaccount.com")
   instance = each.value["name"]
   type     = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
