@@ -48,16 +48,6 @@ module "service_account" {
   namespace              = "default"
 }
 
-moved {
-  from = module.service_account
-  to = module.service_account[0]
-}
-
-moved {
-  from = google_project_iam_member.member
-  to = google_project_iam_member.member[0]
-}
-
 resource "google_project_iam_member" "member" {
   count = var.service_account == "" ? 0 : 1
   member  = "serviceAccount:${module.service_account[count.index].email}"

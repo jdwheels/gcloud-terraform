@@ -80,9 +80,6 @@ resource "google_compute_global_address" "services" {
 }
 
 resource "google_service_networking_connection" "services" {
-  depends_on = [
-    google_project_service.servicenetworking
-  ]
   service                 = "servicenetworking.googleapis.com"
   network                 = google_compute_network.vpc.name
   reserved_peering_ranges = [google_compute_global_address.services.name]
