@@ -38,7 +38,7 @@ resource "google_sql_database_instance" "instances" {
 }
 
 module "service_account" {
-  count = var.service_account == "" ? 0 : 1
+  count                  = var.service_account == "" ? 0 : 1
   source                 = "../service-account"
   account_id             = "gsa-${var.service_account}"
   create_service_account = false
@@ -49,7 +49,7 @@ module "service_account" {
 }
 
 resource "google_project_iam_member" "member" {
-  count = var.service_account == "" ? 0 : 1
+  count   = var.service_account == "" ? 0 : 1
   member  = "serviceAccount:${module.service_account[count.index].email}"
   project = var.project_id
   role    = "roles/cloudsql.editor"

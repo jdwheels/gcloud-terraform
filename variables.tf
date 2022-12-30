@@ -65,6 +65,10 @@ variable "node_pools" {
         value  = string
         effect = string
       }))
+      gpus = list(object({
+        type  = string
+        count = number
+      }))
     })
   )
 }

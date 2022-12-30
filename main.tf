@@ -159,6 +159,13 @@ resource "google_container_node_pool" "pools" {
         effect = taint.value["effect"]
       }
     }
+    dynamic "guest_accelerator" {
+      for_each = each.value["gpus"]
+      content {
+        type  = guest_accelerator.value["type"]
+        count = guest_accelerator.value["count"]
+      }
+    }
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
     ]
@@ -391,4 +398,23 @@ module "database" {
   service_account    = var.database_service_account
   project_id         = var.project_id
   workload_pool      = local.workload_pool
+}
+
+locals {
+  gpu_count = sum([for r in var.node_pools : length(r.gpus)])
+}
+
+data "http" "nvidia_driver_installer" {
+  count      = local.gpu_count > 0 ? 1 : 0
+  url        = "https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml"
+  depends_on = [google_container_node_pool.pools]
+}
+
+resource "kubernetes_manifest" "nvidia_driver_installer" {
+  count    = local.gpu_count > 0 ? 1 : 0
+  manifest = yamldecode(data.http.nvidia_driver_installer[0].response_body)
+  computed_fields = [
+    "spec.template.spec.initContainers[1].resources.requests",
+    "spec.template.spec.initContainers[0].resources.requests",
+  ]
 }
